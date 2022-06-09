@@ -1,0 +1,643 @@
+---
+title: "P1 Code"
+author: "Alice Gee"
+date: "2/11/2022"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+library(reticulate)
+use_python("/usr/bin/python3", required = F)
+```
+
+### numerical method to solve for the derived kinematic equation (in degrees)
+```{python}
+import numpy as np
+def secant(f, a, b, tol, x, y, v, g):
+    f_prime = (f(x, y, v, g, b)-f(x, y, v, g, a)) / (b-a)
+    c = b - ((f(x, y, v, g, b)) / f_prime)
+    while abs(f(x, y, v, g, c)) > tol:
+        f_prime = (f(x, y, v, g, b) - f(x, y, v, g, a)) / (b-a)
+        c = b - (f(x, y, v, g, b) / f_prime)
+        a = b
+        b = c
+    return(c * 180 / np.pi)
+```
+
+### numerical method to solve for the derived kinematic equation (in radians)
+```{python}
+def secant_v2(f, a, b, tol, x, y, v, g):
+    f_prime = (f(x, y, v, g, b)-f(x, y, v, g, a)) / (b-a)
+    c = b - ((f(x, y, v, g, b)) / f_prime)
+    while abs(f(x, y, v, g, c)) > tol:
+        f_prime = (f(x, y, v, g, b) - f(x, y, v, g, a)) / (b-a)
+        c = b - (f(x, y, v, g, b) / f_prime)
+        a = b
+        b = c
+    return(c)
+```
+
+### maximum x* values for all inital velocities; when y* = 0
+```{python}
+import math
+f = lambda x, y, v, g, theta: (v * np.cos(theta))* ((v * np.sin(theta) + math.sqrt(v**2*(np.sin(theta)**2)-2*g*y))/ g) - x
+a = 0
+b = 3000
+tol = 1e-6
+y = 0
+g = 9.8
+theta = np.pi / 4
+velocity_store = []
+store = []
+for v in range(100, 160, 10):
+    f_prime = (f(b, y, v, g, theta)-f(a, y, v, g, theta)) / (b-a)
+    c = b - ((f(b, y, v, g, theta)) / f_prime)
+    while abs(f(c, y, v, g, theta)) > tol:
+        f_prime = (f(b, y, v, g, theta) - f(a, y, v, g, theta)) / (b-a)
+        c = b - (f(b, y, v, g, theta) / f_prime)
+        a = b
+        b = c
+    velocity_store.append(v)
+    store.append(c)
+print(velocity_store)
+print(store)
+```
+
+```{python}
+import matplotlib.pyplot as plt
+
+def determinant(a, b, c, d):
+    output = a*d - b*c
+    return output
+
+def linear_fit (data):
+    n = len(data)
+    sum_xi = 0
+    sum_xi2 = 0 
+    sum_yi = 0 
+    sum_yi2 = 0
+    sum_xiyi = 0
+    for i in range(n):
+        sum_xi += data[i][0]
+        sum_xi2 += (data[i][0])**2
+        sum_yi += data[i][1]
+        sum_yi2 += (data[i][1])**2
+        sum_xiyi += data[i][0] * data[i][1]
+    delta = determinant(n, sum_xi, sum_xi, sum_xi2)
+    a0 = determinant(sum_yi, sum_xi, sum_xiyi, sum_xi2) / delta
+    a1 = determinant(n, sum_yi, sum_xi, sum_xiyi) / delta
+    return (a0, a1)
+  
+data = []
+for i in range(len(store)):
+  data.append((velocity_store[i], store[i]))
+# a0, a1 = linear_fit (data)[0], linear_fit(data)[1]
+a0 = linear_fit(data)[0]
+a1 = linear_fit(data)[1]
+# plot the points and the best fit line
+x = np.linspace(90,160, 10)
+y = a0 + a1 * x
+plt.plot(x, y)
+plt.scatter(velocity_store, store)
+plt.xlabel('Initial Velocity, v0 (m/s)')
+plt.ylabel('Maximum x coordinate (m)')
+plt.title(f"Initial Velocity vs. Maximum x coordinate")
+plt.show()
+```
+
+### theta calculations for v0 = 100
+```{python}
+import pandas as pd
+
+f = lambda x, y, v, g, theta: (v * np.cos(theta))* ((v * np.sin(theta) + math.sqrt(v**2*(np.sin(theta)**2)-2*g*y))/ g) - x
+v = 100
+g = 9.8
+a = 0 
+b = np.pi/4
+tol = 1e-6
+
+column_store = []
+score_matrix = []
+column_names = [str(x) for x in range(0,1071, 51)]
+row_names = [str(y) for y in range(-100,110, 10)]
+
+for y in range(-100, 10, 10):
+    column_store = []
+    for x in range(0, 1071, 51):
+        try:
+            theta = secant(f, a, b, tol, x, y, v, g)
+            column_store.append(round(theta, 3))
+        except ValueError:
+            column_store.append("Out of Range")
+            pass
+    score_matrix.append(column_store)
+    
+a = np.pi/4
+b = np.pi/2
+for y in range(10, 110, 10):
+    column_store = []
+    for x in range(0, 1071, 51):
+        try:
+            theta = secant(f, a, b, tol, x, y, v, g)
+            column_store.append(round(theta, 3))
+        except ValueError:
+            column_store.append("Out of Range")
+    score_matrix.append(column_store)
+
+df = pd.DataFrame(score_matrix, columns = column_names, index = row_names)
+```
+
+```{r}
+library(dplyr)
+library(knitr)
+r_df = py$df 
+knitr::kable(r_df, caption = "Angle of Artillery for Given X and Y values") 
+```
+
+### average error for theta calculations at v0 = 100 m/s 
+```{python}
+v = 100
+g = 9.8
+a = 0 
+b = np.pi/4
+tol = 1e-6
+
+diff_store = []
+
+for y in range(-100, 10, 10):
+    for x in range(0, 1071, 51):
+        try:
+            theta = secant_v2(f, a, b, tol, x, y, v, g)
+            diff_store.append(f(x, y, v, g, theta))
+        except ValueError:
+            pass
+        
+a = np.pi/4
+b = np.pi/2
+for y in range(10, 110, 10):
+    column_store = []
+    for x in range(0, 1071, 51):
+        try:
+            theta = secant_v2(f, a, b, tol, x, y, v, g)
+            diff_store.append(f(x, y, v, g, theta))
+        except ValueError:
+            pass
+        
+        
+print(np.nanmean(diff_store))
+```
+
+### theta calculations for v0 = 110
+```{python}
+f = lambda x, y, v, g, theta: (v * np.cos(theta))* ((v * np.sin(theta) + math.sqrt(v**2*(np.sin(theta)**2)-2*g*y))/ g) - x
+v = 110
+g = 9.8
+a = 0 
+b = np.pi/4
+tol = 1e-6
+
+column_store = []
+score_matrix = []
+column_names = [str(x) for x in range(0,1240, 62)]
+row_names = [str(y) for y in range(-100,110, 10)]
+
+for y in range(-100, 10, 10):
+    column_store = []
+    for x in range(0, 1240, 62):
+        try:
+            theta = secant(f, a, b, tol, x, y, v, g)
+            column_store.append(round(theta, 3))
+        except ValueError:
+            column_store.append("Out of Range")
+    score_matrix.append(column_store)
+    
+a = np.pi/4
+b = np.pi/2
+for y in range(10, 110, 10):
+    column_store = []
+    for x in range(0, 1240, 62):
+        try:
+            theta = secant(f, a, b, tol, x, y, v, g)
+            column_store.append(round(theta, 3))
+        except ValueError:
+            column_store.append("Out of Range")
+    score_matrix.append(column_store)
+
+df = pd.DataFrame(score_matrix, columns = column_names, index = row_names)
+```
+
+```{r}
+r_df = py$df 
+knitr::kable(r_df, caption = "Angle of Artillery for Given X and Y values") 
+```
+
+### average error for theta calculations at v0 = 110 m/s 
+```{python}
+v = 110
+g = 9.8
+a = 0 
+b = np.pi/4
+tol = 1e-6
+
+diff_store = []
+
+for y in range(-100, 10, 10):
+    for x in range(0, 1240, 62):
+        try:
+            theta = secant_v2(f, a, b, tol, x, y, v, g)
+            diff_store.append(f(x, y, v, g, theta))
+        except ValueError:
+            pass
+    
+a = np.pi/4
+b = np.pi/2
+for y in range(10, 110, 10):
+    for x in range(0, 1240, 62):
+        try:
+            theta = secant_v2(f, a, b, tol, x, y, v, g)
+            diff_store.append(f(x, y, v, g, theta))
+        except ValueError:
+            pass
+
+        
+print(np.nanmean(diff_store))
+```
+
+# theta calculations for v0 = 120
+```{python}
+f = lambda x, y, v, g, theta: (v * np.cos(theta))* ((v * np.sin(theta) + math.sqrt(v**2*(np.sin(theta)**2)-2*g*y))/ g) - x
+v = 120
+g = 9.8
+a = 0 
+b = np.pi/4
+tol = 1e-6
+
+column_store = []
+score_matrix = []
+column_names = [str(x) for x in range(0,1480, 74)]
+row_names = [str(y) for y in range(-100,110, 10)]
+
+for y in range(-100, 10, 10):
+    column_store = []
+    for x in range(0, 1480, 74):
+        try:
+            theta = secant(f, a, b, tol, x, y, v, g)
+            column_store.append(round(theta, 3))
+        except ValueError:
+            column_store.append("Out of Range")
+    score_matrix.append(column_store)
+    
+a = np.pi/4
+b = np.pi/2
+for y in range(10, 110, 10):
+    column_store = []
+    for x in range(0, 1480, 74):
+        try:
+            theta = secant(f, a, b, tol, x, y, v, g)
+            column_store.append(round(theta, 3))
+        except ValueError:
+            column_store.append("Out of Range")
+    score_matrix.append(column_store)
+
+df = pd.DataFrame(score_matrix, columns = column_names, index = row_names)
+```
+
+```{r}
+r_df = py$df 
+knitr::kable(r_df, caption = "Angle of Artillery for Given X and Y values") 
+```
+
+# average error for theta calculations at v0 = 120 m/s 
+```{python}
+v = 120
+g = 9.8
+a = 0 
+b = np.pi/4
+tol = 1e-6
+
+diff_store = []
+
+for y in range(-100, 10, 10):
+    for x in range(0, 1480, 74):
+        try:
+            theta = secant_v2(f, a, b, tol, x, y, v, g)
+            diff_store.append(f(x, y, v, g, theta))
+        except ValueError:
+            pass
+    
+a = np.pi/4
+b = np.pi/2
+for y in range(-100, 10, 10):
+    for x in range(0, 1480, 74):
+        try:
+            theta = secant_v2(f, a, b, tol, x, y, v, g)
+            diff_store.append(f(x, y, v, g, theta))
+        except ValueError:
+            pass
+
+        
+print(np.nanmean(diff_store))
+```
+
+### theta calculations for v0 = 130 m/s
+```{python}
+f = lambda x, y, v, g, theta: (v * np.cos(theta))* ((v * np.sin(theta) + math.sqrt(v**2*(np.sin(theta)**2)-2*g*y))/ g) - x
+v = 130
+g = 9.8
+a = 0 
+b = np.pi/4
+tol = 1e-6
+
+column_store = []
+score_matrix = []
+column_names = [str(x) for x in range(0,1740, 87)]
+row_names = [str(y) for y in range(-100,110, 10)]
+
+for y in range(-100, 10, 10):
+    column_store = []
+    for x in range(0, 1740, 87):
+        try:
+            theta = secant(f, a, b, tol, x, y, v, g)
+            column_store.append(round(theta, 3))
+        except ValueError:
+            column_store.append("Out of Range")
+    score_matrix.append(column_store)
+    
+a = np.pi/4
+b = np.pi/2
+for y in range(10, 110, 10):
+    column_store = []
+    for x in range(0, 1740, 87):
+        try:
+            theta = secant(f, a, b, tol, x, y, v, g)
+            column_store.append(round(theta, 3))
+        except ValueError:
+            column_store.append("Out of Range")
+    score_matrix.append(column_store)
+
+df = pd.DataFrame(score_matrix, columns = column_names, index = row_names)
+```
+
+```{r}
+r_df = py$df 
+knitr::kable(r_df, caption = "Angle of Artillery for Given X and Y values") 
+```
+
+# average error for theta calculations at v0 = 130 m/s 
+```{python}
+v = 130
+g = 9.8
+a = 0 
+b = np.pi/4
+tol = 1e-6
+
+diff_store = []
+
+for y in range(10, 110, 10):
+    for x in range(0, 1740, 87):
+        try:
+            theta = secant_v2(f, a, b, tol, x, y, v, g)
+            diff_store.append(f(x, y, v, g, theta))
+        except ValueError:
+            pass
+    
+a = np.pi/4
+b = np.pi/2
+for y in range(10, 110, 10):
+    for x in range(0, 1740, 87):
+        try:
+            theta = secant_v2(f, a, b, tol, x, y, v, g)
+            diff_store.append(f(x, y, v, g, theta))
+        except ValueError:
+            pass
+
+        
+print(np.nanmean(diff_store))
+```
+
+### theta calculations for v0 = 140 m/s
+```{python}
+f = lambda x, y, v, g, theta: (v * np.cos(theta))* ((v * np.sin(theta) + math.sqrt(v**2*(np.sin(theta)**2)-2*g*y))/ g) - x
+v = 140
+g = 9.8
+a = 0 
+b = np.pi/4
+tol = 1e-6
+
+column_store = []
+score_matrix = []
+column_names = [str(x) for x in range(0,2000, 100)]
+row_names = [str(y) for y in range(-100,110, 10)]
+
+for y in range(-100, 10, 10):
+    column_store = []
+    for x in range(0, 2000, 100):
+        try:
+            theta = secant(f, a, b, tol, x, y, v, g)
+            column_store.append(round(theta, 3))
+        except ValueError:
+            column_store.append("Out of Range")
+    score_matrix.append(column_store)
+    
+a = np.pi/4
+b = np.pi/2
+for y in range(10, 110, 10):
+    column_store = []
+    for x in range(0, 2000, 100):
+        try:
+            theta = secant(f, a, b, tol, x, y, v, g)
+            column_store.append(round(theta, 3))
+        except ValueError:
+            column_store.append("Out of Range")
+    score_matrix.append(column_store)
+
+df = pd.DataFrame(score_matrix, columns = column_names, index = row_names)
+```
+
+```{r}
+r_df = py$df 
+knitr::kable(r_df, caption = "Angle of Artillery for Given X and Y values") 
+```
+
+# average error for theta calculations at v0 = 140 m/s 
+```{python}
+
+v = 140
+g = 9.8
+a = 0 
+b = np.pi/4
+tol = 1e-6
+
+diff_store = []
+
+for y in range(10, 110, 10):
+    for x in range(0, 2000, 100):
+        try:
+            theta = secant_v2(f, a, b, tol, x, y, v, g)
+            diff_store.append(f(x, y, v, g, theta))
+        except ValueError:
+            pass
+    
+a = np.pi/4
+b = np.pi/2
+for y in range(10, 110, 10):
+    for x in range(0, 2000, 100):
+        try:
+            theta = secant_v2(f, a, b, tol, x, y, v, g)
+            diff_store.append(f(x, y, v, g, theta))
+        except ValueError:
+            pass
+
+        
+print(np.nanmean(diff_store))
+```
+
+### theta calculations for v0 = 150 m/s
+```{python}
+f = lambda x, y, v, g, theta: (v * np.cos(theta))* ((v * np.sin(theta) + math.sqrt(v**2*(np.sin(theta)**2)-2*g*y))/ g) - x
+v = 150
+g = 9.8
+a = 0 
+b = np.pi/4
+tol = 1e-6
+
+column_store = []
+score_matrix = []
+column_names = [str(x) for x in range(0,2300, 115)]
+row_names = [str(y) for y in range(-100,110, 10)]
+
+for y in range(-100, 10, 10):
+    column_store = []
+    for x in range(0, 2300, 115):
+        try:
+            theta = secant(f, a, b, tol, x, y, v, g)
+            column_store.append(round(theta, 3))
+        except ValueError:
+            column_store.append("Out of Range")
+    score_matrix.append(column_store)
+    
+a = np.pi/4
+b = np.pi/2
+for y in range(10, 110, 10):
+    column_store = []
+    for x in range(0, 2300, 115):
+        try:
+            theta = secant(f, a, b, tol, x, y, v, g)
+            column_store.append(round(theta, 3))
+        except ValueError:
+            column_store.append("Out of Range")
+    score_matrix.append(column_store)
+
+df = pd.DataFrame(score_matrix, columns = column_names, index = row_names)
+```
+
+```{r}
+r_df = py$df 
+knitr::kable(r_df, caption = "Angle of Artillery for Given X and Y values") 
+```
+
+# average error for theta calculations at v0 = 150 m/s
+```{python}
+v = 150
+g = 9.8
+a = 0 
+b = np.pi/4
+tol = 1e-6
+
+diff_store = []
+
+for y in range(10, 110, 10):
+    for x in range(0, 2300, 115):
+        try:
+            theta = secant_v2(f, a, b, tol, x, y, v, g)
+            diff_store.append(f(x, y, v, g, theta))
+        except ValueError:
+            pass
+    
+a = np.pi/4
+b = np.pi/2
+for y in range(10, 110, 10):
+    for x in range(0, 2300, 115):
+        try:
+            theta = secant_v2(f, a, b, tol, x, y, v, g)
+            diff_store.append(f(x, y, v, g, theta))
+        except ValueError:
+            pass
+        
+print(np.nanmean(diff_store))
+```
+
+# create class to simulate the motion of artillery projection 
+```{python}
+from math import sin, cos, radians
+
+class ProjectileMotion:
+    def __init__(self, v, x0, y0, theta):
+        # set initial (x,y) coordinates 
+        self.x, self.y = x0, y0
+        # set initial velocity for x and y axes
+        self.vx, self.vy = v*cos(radians(theta)), v*sin(radians(theta))
+        # acceleration for x and y axes
+        self.ax, self.ay = 0, -9.8
+        # initialize time
+        self.time = 0
+        # initialize lists to store x and y coordinates
+        self.xstore, self.ystore = [self.x], [self.y]
+        
+    def update_x_velocity(self, dt):
+        self.vx += self.ax*dt
+        return self.vx
+      
+    def update_x_coordinate(self, dt):
+        self.x += 0.5*(self.vx + self.update_x_velocity(dt))*dt
+        return self.x
+      
+    def update_y_velocity(self, dt):
+        self.vy += self.ay*dt
+        return self.vy
+      
+    def update_y_coordinate(self, dt):
+        self.y += 0.5*(self.vy + self.update_y_velocity(dt))*dt
+        return self.y
+      
+    def step(self, dt):
+        self.xstore.append(self.update_x_coordinate(dt))
+        self.ystore.append(self.update_y_coordinate(dt))
+        self.time += dt
+        
+    def launch(x0, y0, v, theta):
+        artillery = ProjectileMotion(x0, y0, v, theta)
+        t, dt = 0, 0.01 
+        artillery.step(dt)
+        while artillery.y >= -100:
+            artillery.step(dt)
+            t += dt
+        return (artillery.xstore, artillery.ystore)
+```
+
+### print out the projectile plots
+```{python}
+for velocity in range(100, 160, 10):
+    x0, y0 = 0, 0
+    x_45, y_45 = ProjectileMotion.launch(velocity, x0, y0, 45)
+    x_30, y_30 = ProjectileMotion.launch(velocity, x0, y0, 30)
+    x_60, y_60 = ProjectileMotion.launch(velocity, x0, y0, 60)
+    plt.plot(x_45, y_45, 'bo-', x_30, y_30, 'ro-', x_60, y_60, 'ko-', [0, 2500], [0,0], 'k-')
+    plt.legend(['theta = 45º', 'theta = 30º', 'theta = 60º'])
+    plt.xlabel('X coordinate (m)')
+    plt.ylabel('Y coordinate (m)')
+    plt.title(f"Projectile Plot for Initial Velocity: {velocity} m/s")
+    plt.show()
+```
